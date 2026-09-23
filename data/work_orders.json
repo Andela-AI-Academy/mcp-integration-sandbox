@@ -1,0 +1,51 @@
+[
+  {
+    "id": 4101,
+    "site_id": "SITE-DE-01",
+    "status": "completed",
+    "scheduled_on": "2026-09-14",
+    "amount_cents": 128000
+  },
+  {
+    "id": 4102,
+    "site_id": "SITE-DE-03",
+    "status": "completed",
+    "scheduled_on": "2026-09-15",
+    "amount_cents": 49950
+  },
+  {
+    "id": 4103,
+    "site_id": "SITE-ES-02",
+    "status": "completed",
+    "scheduled_on": "2026-09-15",
+    "amount_cents": 210000
+  },
+  {
+    "id": 4104,
+    "site_id": "SITE-DE-01",
+    "status": "completed",
+    "scheduled_on": "2026-09-16",
+    "amount_cents": 87500
+  },
+  {
+    "id": 4105,
+    "site_id": "SITE-FR-04",
+    "status": "completed",
+    "scheduled_on": "2026-09-16",
+    "amount_cents": 156300
+  },
+  {
+    "id": 4106,
+    "site_id": "SITE-IT-05",
+    "status": "cancelled",
+    "scheduled_on": "2026-09-16",
+    "amount_cents": 64000
+  },
+  {
+    "id": 4107,
+    "site_id": "SITE-ES-02",
+    "status": "scheduled",
+    "scheduled_on": "2026-09-30",
+    "amount_cents": 99900
+  }
+]

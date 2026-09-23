@@ -1,0 +1,11 @@
+# Generated deterministically by `make seed` — never committed.
+ops.db
+ops.db-journal
+ops.db-wal
+ops.db-shm
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+docs/
