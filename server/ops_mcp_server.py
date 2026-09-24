@@ -14,6 +14,18 @@ Read-only, twice over
 2. Statements are screened before execution: a single SELECT (or WITH ... SELECT)
    only. This exists to give a clear refusal message rather than a driver error.
 
+There is no write mode. `--read-only` is accepted so the posture is explicit in
+the client config; passing `--writable` is refused.
+
+IMPORTANT — what this does NOT protect
+--------------------------------------
+This server governs the MCP path only. The agent also has a shell, and ops.db is
+just a file on disk: a Python or sqlite3 one-liner can write to it without ever
+touching this server. Scoping a connection is not the same as scoping the agent.
+The sandbox closes that gap two further ways (see README): the database file is
+made read-only on disk by `make seed`, and a PreToolUse hook refuses shell
+commands that reach for ops.db directly.
+
 Tools exposed
 -------------
     list_objects     tables and views in the database
@@ -298,7 +310,21 @@ def serve(db_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Read-only MCP server for the WS4 sandbox.")
     parser.add_argument("--db", default=str(DEFAULT_DB), help="Path to ops.db")
+    parser.add_argument(
+        "--read-only",
+        action="store_true",
+        default=True,
+        help="Serve read-only (the default, and the only supported mode).",
+    )
+    parser.add_argument(
+        "--writable",
+        action="store_true",
+        help=argparse.SUPPRESS,  # accepted only so we can refuse it loudly
+    )
     args = parser.parse_args()
+
+    if args.writable:
+        parser.error("this server has no write mode; remove --writable")
 
     db_path = Path(args.db)
     if not db_path.is_absolute():
@@ -307,7 +333,10 @@ def main() -> None:
         candidate = (ROOT / db_path).resolve()
         db_path = candidate if candidate.exists() else db_path.resolve()
 
-    print(f"ops-db MCP server: {db_path} (read-only)", file=sys.stderr)
+    print(
+        f"ops-db MCP server: {db_path} (read-only; governs the MCP path only)",
+        file=sys.stderr,
+    )
     serve(db_path)
 
 

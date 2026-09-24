@@ -10,7 +10,9 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import stat
 import sys
 from pathlib import Path
 
@@ -21,8 +23,17 @@ ORDERS = ROOT / "data" / "work_orders.json"
 COLUMNS = ("id", "site_id", "status", "scheduled_on", "amount_cents")
 
 
-def build(db_path: Path) -> int:
+def _make_writable(path: Path) -> None:
+    """Windows refuses to unlink a read-only file; clear the bit first."""
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+
+
+def build(db_path: Path, lock: bool = True) -> int:
     if db_path.exists():
+        _make_writable(db_path)
         db_path.unlink()
 
     orders = json.loads(ORDERS.read_text(encoding="utf-8"))
@@ -40,6 +51,12 @@ def build(db_path: Path) -> int:
         conn.commit()
     finally:
         conn.close()
+
+    if lock:
+        # The last line of defence. The MCP connection is read-only, but the
+        # agent also has a shell, and this database is just a file. Making it
+        # read-only on disk is what stops a script from writing to it.
+        os.chmod(db_path, stat.S_IREAD | (stat.S_IRGRP | stat.S_IROTH if os.name != "nt" else 0))
 
     return len(orders)
 

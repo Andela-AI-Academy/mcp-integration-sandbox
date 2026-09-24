@@ -1,12 +1,7 @@
 # WS4 Integration Sandbox
 
-A safe, self-contained environment for the **Workshop 4 (Integration: MCP, Data & SQL)**
-facilitator demo. One machine, no Siemens systems, no network, no production data.
+A safe, self-contained environment for the **Workshop 4 (Integration: MCP, Data & SQL)** demo. One machine, no Siemens systems, no network, no production data.
 
-This exists because Siemens had not approved an MCP server in time for cohort 1,
-so WS4 runs as **concepts + facilitator demo**. The facilitator drives everything
-here; learners watch and reason. See
-`programme-adoption/course-claude-siemens/Workshop 4 - Integration/07-facilitator-demo-pack.md`.
 
 ## What it contains
 
@@ -42,12 +37,13 @@ folder and run `/mcp` — you should see `ops-db` connected.
 Individually:
 
 ```bash
-make mcp-config   # copy mcp.json.example -> .mcp.json (read it first)
-make seed         # build ops.db (deterministic)
-make verify       # prove the mismatch is visible
-make selftest     # exercise the MCP server the way a client does
-make test         # pytest
-make clean        # remove ops.db and caches
+make mcp-config     # copy mcp.json.example -> .mcp.json (read it first)
+make claude-config  # install .claude/ settings + the ops.db guard hook
+make seed           # build ops.db (deterministic, and read-only on disk)
+make verify         # prove the mismatch is visible
+make selftest       # exercise the MCP server the way a client does
+make test           # pytest
+make clean          # remove ops.db and caches
 ```
 
 ### On Windows
@@ -69,24 +65,59 @@ granting an agent a new reach, and reading the config before you install it is
 exactly the judgement WS4 teaches. `make mcp-config` copies the example into
 place once you have looked at it.
 
-## The connection is read-only, twice over
+## The read-only boundary and where it ends
+
+This is worth understanding properly, because it is the most valuable thing in
+the sandbox and it surfaced from a real rehearsal.
+
+**The MCP connection is read-only, twice over.**
 
 1. SQLite is opened with a `mode=ro` URI, so writes fail at the driver level.
-2. Statements are screened before execution — one `SELECT` (or `WITH … SELECT`)
-   at a time, nothing else — so a refused write returns a clear message instead
-   of a driver error.
+2. Statements are screened before execution, one `SELECT` (or `WITH … SELECT`)
+   at a time, so a refused write returns a clear message, not a driver error.
 
-Try it during the demo: ask the agent to update a row and read the refusal aloud.
-That is the scoped-to-need rule made visible.
+**But that only governs the MCP path.** Ask the agent to "set every work order
+amount to 1" and a capable model will not stop at the refusal: it still has a
+shell, and `ops.db` is just a file. It will reach for a Python or `sqlite3`
+one-liner and write to the database without ever touching the server. A
+read-only *connection* is not a read-only *agent*.
+
+### A better trust boundary
+
+The sandbox closes that gap twice more:
+
+3. **The file is read-only on disk.** `make seed` chmods `ops.db` to `444`, so a
+   script that goes around the server still fails, with
+   `attempt to write a readonly database`. This is the layer that actually holds.
+4. **A PreToolUse hook refuses shell commands that name `ops.db`.** Installed by
+   `make claude-config` from `hooks/guard-ops-db.sh`. It reads the whole command
+   string, so wrapped forms like `bash -c "…"` are caught too — which a
+   permission pattern alone would miss. `make seed` still works, because it does
+   not name the file.
+
+Rebuilding still works: `make seed` clears the read-only bit before replacing
+the file (including on Windows, which refuses to unlink a read-only file).
+
+**Verification:**
+
+- Ask the agent to update a row **through the connection**. It refuses. *"Scoped
+  to need."*
+- Then ask it again and let it try to go **around** the connection with a script.
+  Watch the hook or the filesystem stop it. *"Scoping a connection is not the
+  same as scoping the agent — the agent still has a shell."*
+
 
 ## Layout
 
 ```
-data/schema.sql           table + the v_billing_export view (the defect lives here)
-data/work_orders.json     deterministic seed data
-data/finance_extract.csv  System B
-seed/build_seed.py        builds ops.db
-server/ops_mcp_server.py  bundled read-only MCP server (stdlib only)
+data/schema.sql              table + the v_billing_export view (the defect lives here)
+data/work_orders.json        deterministic seed data
+data/finance_extract.csv     System B
+seed/build_seed.py           builds ops.db, then makes it read-only on disk
+server/ops_mcp_server.py     bundled read-only MCP server (stdlib only)
+hooks/guard-ops-db.sh        PreToolUse hook: refuses shell access to ops.db
+mcp.json.example             the MCP config you install with make mcp-config
+claude-settings.example.json permissions + hook wiring (make claude-config)
 scripts/verify_demo.py    proves the mismatch before you present
 scripts/selftest_mcp.py   exercises the MCP handshake, tools, and refusals
 tests/test_sandbox.py     guards the seeded defect and the read-only screening
